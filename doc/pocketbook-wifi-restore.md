@@ -185,6 +185,6 @@ Sauberer wäre es, die neuen Funktionen in koreader-base (`ffi/inkview_h.lua`) z
 ## Am Gerät hinterlassen
 
 - `/mnt/ext1/applications/koreader/wifi_restore_backup/device.lua` – Original (md5 `8099c0e6fa2751a51d380d759a3c40c8`)
-- `/mnt/ext1/applications/koreader/frontend/device/pocketbook/device.lua` – Stand von Commit `ea9349361`, also noch *mit* `BanSleep(10)`
-  (md5 `474bc4b33a91e9ddc4cd858038652068`)
+- `/mnt/ext1/applications/koreader/frontend/device/pocketbook/device.lua` – finaler Stand aus PR 2 (Commit `fe3991362`), angewendet auf die
+  installierte v2026.07.2 (md5 `10e7358b04e882741c308252056a5620`)
 - `/mnt/ext1/applications/koreader/wifi_test/` – Mess-Schleife (`probe.sh`, `probe.log`, `probe.pid`, `testb.log`). Die Schleife läuft bis zum nächsten Neustart.
