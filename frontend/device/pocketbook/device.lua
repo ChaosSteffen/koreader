@@ -487,6 +487,12 @@ function PocketBook:initNetworkManager(NetworkMgr)
         end
     end
 
+    -- netagent brings Wi-Fi up as eth0 (its wpa_supplicant control socket path, /var/run/wpa_supplicant/eth0, is hardcoded).
+    -- Knowing it enables the "Disable Wi-Fi connection when inactive" option, which watches its tx_packets.
+    function NetworkMgr:getNetworkInterfaceName()
+        return "eth0"
+    end
+
     function NetworkMgr:isWifiOn()
         return band(inkview.QueryNetwork(), C.NET_CONNECTED) ~= 0
     end
