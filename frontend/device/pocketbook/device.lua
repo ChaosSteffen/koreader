@@ -16,6 +16,13 @@ ffi.cdef[[
     int __res_init(void);
 ]]
 
+-- Not declared in ffi/inkview_h, and missing on firmwares older than 5.8.
+-- NOTE: InkView invokes the NetConnectAsync callback from a detached thread, which we can't let re-enter the Lua state,
+--       but it checks it for NULL, so we just never pass one.
+pcall(ffi.cdef, "int NetConnectAsync(int (*)(int));")
+pcall(ffi.cdef, "int NetMgrStatus(void);")
+local has_net_connect_async = pcall(function() return inkview.NetConnectAsync, inkview.NetMgrStatus end)
+
 local function yes() return true end
 local function no() return false end
 
@@ -29,6 +36,7 @@ local PocketBook = Generic:extend{
     isPocketBook = yes,
     hasOTAUpdates = yes,
     hasWifiToggle = yes,
+    hasWifiRestore = has_net_connect_async and yes or no,
     isTouchDevice = yes,
     hasKeys = yes,
     hasFrontlight = yes,
@@ -391,7 +399,83 @@ function PocketBook:initNetworkManager(NetworkMgr)
         end
     end
 
+    -- NetConnectAsync returns immediately, so we have to wait for the connection ourselves,
+    -- in order to keep the system from going back to sleep in the meantime (which it does within seconds after a resume).
+    -- NOTE: We deliberately don't start the keepalive here: once everyone's done syncing, we're happy to let the system
+    --       tear Wi-Fi down again the next time it goes to sleep while idle.
+    local restore_iter
+    local function waitForRestoredWifi()
+        if NetworkMgr:isConnected() then
+            logger.dbg("NetworkMgr: Wi-Fi restored after", restore_iter * 0.5, "seconds")
+        elseif restore_iter < 60 then
+            restore_iter = restore_iter + 1
+            UIManager:scheduleIn(0.5, waitForRestoredWifi)
+            return
+        else
+            logger.info("NetworkMgr: Wi-Fi not restored after 30s, allowing standby again")
+        end
+        restore_iter = nil
+        UIManager:allowStandby()
+    end
+
+    -- If the system's network manager isn't running, NetConnect* pops up a system dialog asking whether to start it.
+    -- That happens right after boot (netmgr.sh only starts it after a few seconds), or when networking was disabled
+    -- system-wide, so wait for it for a bit instead, and silently give up if it doesn't come up.
+    local function connectWhenNetMgrIsUp()
+        local netmgr_status = inkview.NetMgrStatus()
+        if netmgr_status > 0 and NetworkMgr:isWifiOn() then
+            -- On boot, the system connects to a known network on its own once the network manager is up.
+            restore_iter = 0
+            waitForRestoredWifi()
+            return
+        elseif netmgr_status > 0 then
+            -- This brings Wi-Fi up (if necessary) and connects to a known network in a background thread.
+            local ret = inkview.NetConnectAsync(nil)
+            if ret == C.NET_OK then
+                restore_iter = 0
+                UIManager:scheduleIn(0.5, waitForRestoredWifi)
+                return
+            end
+            logger.warn("NetworkMgr: NetConnectAsync failed:", ret)
+        elseif restore_iter < 30 then
+            if restore_iter == 0 then
+                logger.dbg("NetworkMgr: waiting for the system network manager, NetMgrStatus:", netmgr_status)
+            end
+            restore_iter = restore_iter + 1
+            UIManager:scheduleIn(0.5, connectWhenNetMgrIsUp)
+            return
+        else
+            logger.info("NetworkMgr: system network manager is not running, not restoring Wi-Fi")
+        end
+        restore_iter = nil
+        UIManager:allowStandby()
+    end
+
+    local function cancelWifiRestore()
+        if restore_iter then
+            UIManager:unschedule(connectWhenNetMgrIsUp)
+            UIManager:unschedule(waitForRestoredWifi)
+            restore_iter = nil
+            UIManager:allowStandby()
+        end
+    end
+
+    function NetworkMgr:restoreWifiAsync()
+        if self:isWifiOn() then
+            -- Resume also fires when we're switched back to from another app, in which case Wi-Fi is usually still up.
+            return
+        end
+        if restore_iter then
+            return
+        end
+
+        UIManager:preventStandby()
+        restore_iter = 0
+        connectWhenNetMgrIsUp()
+    end
+
     function NetworkMgr:turnOffWifi(complete_callback)
+        cancelWifiRestore()
         inkview.NetDisconnect()
         if complete_callback then
             complete_callback()
@@ -553,6 +637,7 @@ local PocketBook613 = PocketBook:extend{
     isTouchDevice = no,
     hasWifiToggle = no,
     hasSeamlessWifiToggle = no,
+    hasWifiRestore = no,
     hasFrontlight = no,
     hasDPad = yes,
     hasFewKeys = yes,
