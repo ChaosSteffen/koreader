@@ -16,11 +16,12 @@ ffi.cdef[[
     int __res_init(void);
 ]]
 
--- Not declared in ffi/inkview_h, and possibly missing on older firmwares.
--- NOTE: InkView invokes the callback from a detached thread, which we can't let re-enter the Lua state,
+-- Not declared in ffi/inkview_h, and missing on firmwares older than 5.8.
+-- NOTE: InkView invokes the NetConnectAsync callback from a detached thread, which we can't let re-enter the Lua state,
 --       but it checks it for NULL, so we just never pass one.
 pcall(ffi.cdef, "int NetConnectAsync(int (*)(int));")
-local has_net_connect_async = pcall(function() return inkview.NetConnectAsync end)
+pcall(ffi.cdef, "int NetMgrStatus(void);")
+local has_net_connect_async = pcall(function() return inkview.NetConnectAsync, inkview.NetMgrStatus end)
 
 local function yes() return true end
 local function no() return false end
@@ -417,8 +418,37 @@ function PocketBook:initNetworkManager(NetworkMgr)
         UIManager:allowStandby()
     end
 
+    -- If the system's network manager isn't running, NetConnect* pops up a system dialog asking whether to start it.
+    -- That happens right after boot (netmgr.sh only starts it after a few seconds), or when networking was disabled
+    -- system-wide, so wait for it for a bit instead, and silently give up if it doesn't come up.
+    local function connectWhenNetMgrIsUp()
+        local netmgr_status = inkview.NetMgrStatus()
+        if netmgr_status > 0 then
+            -- This brings Wi-Fi up (if necessary) and connects to a known network in a background thread.
+            local ret = inkview.NetConnectAsync(nil)
+            if ret == C.NET_OK then
+                restore_iter = 0
+                UIManager:scheduleIn(0.5, waitForRestoredWifi)
+                return
+            end
+            logger.warn("NetworkMgr: NetConnectAsync failed:", ret)
+        elseif restore_iter < 30 then
+            if restore_iter == 0 then
+                logger.dbg("NetworkMgr: waiting for the system network manager, NetMgrStatus:", netmgr_status)
+            end
+            restore_iter = restore_iter + 1
+            UIManager:scheduleIn(0.5, connectWhenNetMgrIsUp)
+            return
+        else
+            logger.info("NetworkMgr: system network manager is not running, not restoring Wi-Fi")
+        end
+        restore_iter = nil
+        UIManager:allowStandby()
+    end
+
     local function cancelWifiRestore()
         if restore_iter then
+            UIManager:unschedule(connectWhenNetMgrIsUp)
             UIManager:unschedule(waitForRestoredWifi)
             restore_iter = nil
             UIManager:allowStandby()
@@ -435,15 +465,9 @@ function PocketBook:initNetworkManager(NetworkMgr)
             return
         end
 
-        -- This brings Wi-Fi up (if necessary) and connects to a known network in a background thread.
-        local ret = inkview.NetConnectAsync(nil)
-        if ret ~= C.NET_OK then
-            logger.warn("NetworkMgr: NetConnectAsync failed:", ret)
-            return
-        end
         UIManager:preventStandby()
         restore_iter = 0
-        UIManager:scheduleIn(0.5, waitForRestoredWifi)
+        connectWhenNetMgrIsUp()
     end
 
     function NetworkMgr:turnOffWifi(complete_callback)
