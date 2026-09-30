@@ -155,7 +155,11 @@ Sauberer wäre es, die neuen Funktionen in koreader-base (`ffi/inkview_h.lua`) z
 
 ## Offen
 
-- **Ausschalten mit WLAN aus:** Verbinden (~2 s) plus Senden muss in die 3–6 s passen, die KOReader nach `EVT_BACKGROUND` noch hat. Nicht getestet.
+- **Ausschalten mit WLAN aus geht nicht** (getestet 22:56:01). `hw_net_connect` prüft `hw_shutting_down()` in jedem Modus,
+  also auch still, und `NetConnectSilent` liefert sofort −12 (`NET_ABORTED`). KOReader lebte danach noch etwa 2 s.
+  Die Warteschlangen der Plugins wurden beim nächsten Start etwa 7 s nach dem Booten gesendet (22:57:02/03).
+  Theoretisch ginge ein direkter Aufruf von `netagent connect_silent` an inkview vorbei. Der liefe aber gegen `monitor.app`,
+  das beim Herunterfahren selbst `netagent disconnect` aufruft und Prozesse beendet. Nicht versucht.
 - **Andere Modelle/Firmwares:** nur PB710 / 6.11 getestet. Das Symbol-Probing sorgt dafür, dass nichts kaputtgeht.
 - **Zeitfenster beim Einschlafen:** Nach dem Verbinden bleiben 3–8 s für *alle* Plugins zusammen. Langsame TLS-Handshakes (pbcloudsync
   berichtet von > 10 s an manchen Tagen) passen nicht zuverlässig hinein. Die Warteschlange als Rückfallebene bleibt nötig.
