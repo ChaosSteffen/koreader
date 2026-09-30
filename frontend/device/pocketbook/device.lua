@@ -486,6 +486,12 @@ function PocketBook:initNetworkManager(NetworkMgr)
         return self:isConnected() and self:canResolveHostnames()
     end
 
+    -- If the system brought Wi-Fi up before we were started (e.g., on boot), keep it alive, too:
+    -- otherwise, it's torn down the first time the device goes to sleep while idle.
+    if NetworkMgr:isWifiOn() then
+        UIManager:nextTick(keepWifiAlive)
+    end
+
     -- Ensure NetworkConnected is eventually broadcasted if KOReader boots
     -- while the system network stack is still coming up.
     local orig_init = NetworkMgr.init
