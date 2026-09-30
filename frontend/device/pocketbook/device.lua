@@ -423,7 +423,12 @@ function PocketBook:initNetworkManager(NetworkMgr)
     -- system-wide, so wait for it for a bit instead, and silently give up if it doesn't come up.
     local function connectWhenNetMgrIsUp()
         local netmgr_status = inkview.NetMgrStatus()
-        if netmgr_status > 0 then
+        if netmgr_status > 0 and NetworkMgr:isWifiOn() then
+            -- On boot, the system connects to a known network on its own once the network manager is up.
+            restore_iter = 0
+            waitForRestoredWifi()
+            return
+        elseif netmgr_status > 0 then
             -- This brings Wi-Fi up (if necessary) and connects to a known network in a background thread.
             local ret = inkview.NetConnectAsync(nil)
             if ret == C.NET_OK then
