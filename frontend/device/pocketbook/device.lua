@@ -527,17 +527,16 @@ function PocketBook:initNetworkManager(NetworkMgr)
 
     -- Ensure NetworkConnected is eventually broadcasted if KOReader boots
     -- while the system network stack is still coming up.
-    local orig_init = NetworkMgr.init
-    function NetworkMgr:init()
-        local is_link_up = self:isWifiOn()
-        local res = orig_init(self)
-
-        if is_link_up and not self.is_connected then
+    -- NOTE: We're called from NetworkMgr:init, so defer the check until it
+    --       has returned and queryNetworkState has set is_connected.
+    local is_link_up = NetworkMgr:isWifiOn()
+    UIManager:nextTick(function()
+        if is_link_up and not NetworkMgr.is_connected then
             local function waitForRoute(iter)
                 iter = iter or 0
-                if not self:isWifiOn() then return end
-                if self:isConnected() then
-                    self.is_connected = true
+                if not NetworkMgr:isWifiOn() then return end
+                if NetworkMgr:isConnected() then
+                    NetworkMgr.is_connected = true
                     UIManager:broadcastEvent(require("ui/event"):new("NetworkConnected"))
                 elseif iter < 90 then
                     UIManager:scheduleIn(0.5, function() waitForRoute(iter + 1) end)
@@ -547,8 +546,7 @@ function PocketBook:initNetworkManager(NetworkMgr)
             end
             UIManager:scheduleIn(0.5, function() waitForRoute(0) end)
         end
-        return res
-    end
+    end)
 end
 
 function PocketBook:getDeviceModel()
