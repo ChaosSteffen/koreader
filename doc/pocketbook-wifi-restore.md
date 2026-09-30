@@ -123,9 +123,11 @@ in koreader-base (`ffi/inkview_h.lua`) zu deklarieren. Das `pcall`-cdef hier fun
 - **Toter Code:** Der `NetworkMgr:init`-Override in `PocketBook:initNetworkManager` (`waitForRoute`, #15244) wird nie
   ausgeführt. `initNetworkManager` wird *aus* dem laufenden `NetworkMgr:init()` aufgerufen und ersetzt die Methode erst,
   nachdem sie schon aufgelöst wurde.
-- **Hardcover-Plugin:** Der Sync beim Suspend ruft `NetConnect` nach `EVT_BACKGROUND` auf. Das scheitert an der Tastensperre
-  („connecting aborted“, 14:36:13). Trotzdem loggt das Plugin „queued progress sent“ (14:36:15), und danach
-  `netagent disconnect`.
+- **Hardcover-Plugin:** Der Sync beim Suspend ruft `WiFiPower(1)` und `NetConnect` nach `EVT_BACKGROUND` auf. `NetConnect` scheitert
+  an der Tastensperre („connecting aborted“, 14:36:13). Trotzdem kam der Sync um 14:36:15 laut Plugin mit echter API-Antwort durch.
+  Plausibel ist, dass `netagent wifi on` (aus `WiFiPower(1)`) allein verbunden hat: netagent startet dabei `udhcpc`, und wpa_supplicant
+  läuft ständig mit der gespeicherten Konfiguration. Die Mess-Schleife hat das Fenster zwischen 14:36:11 und 14:36:16 nicht erfasst.
+  Verlässlich ist dieser Weg nicht. Das Plugin ist inzwischen auf das KOSync-Muster umgestellt (Warteschlange, Abarbeiten bei `NetworkConnected`).
 - Die Meldung „Synchronisierung mit der PocketBook Cloud“ blieb im Lauf ohne Keepalive etwa 3 Minuten stehen
   und verzögerte den Suspend bis 14:39:02. Im Lauf mit Keepalive (15:04) verschwand sie nach kurzer Zeit.
   Die Ursache ist nicht geklärt.
