@@ -230,8 +230,8 @@ Sauberer wäre es, die neuen Funktionen in koreader-base (`ffi/inkview_h.lua`) z
 
 ## Am Gerät hinterlassen
 
-- `/mnt/ext1/applications/koreader/wifi_restore_backup/device.lua` – Original (md5 `8099c0e6fa2751a51d380d759a3c40c8`)
 - `/mnt/ext1/applications/koreader/frontend/device/pocketbook/device.lua` – finaler Stand aus PR 2 (Commit `489a707bd`) und PR 3
-  (Commit `3731965d8`), angewendet auf die installierte v2026.07.2 (md5 `7303b4c0f74045db8f0f5ee21092c0ad`)
-- `/mnt/ext1/applications/koreader/wifi_test/` – Mess-Skripte und Logs (`probe.sh`, `shutdown_probe.sh`, `shutdown*.log`, `tx.log`, `testb.log`).
-  `shutdown_probe.sh` läuft bis zum nächsten Ausschalten.
+  (Commit `3731965d8`), angewendet auf die installierte v2026.07.2 (md5 `7303b4c0f74045db8f0f5ee21092c0ad`).
+- Aufgeräumt am 01.10.: Mess-Skripte und Logs (`wifi_test/`) sowie die Sicherung des Originals (`wifi_restore_backup/`, md5
+  `8099c0e6fa2751a51d380d759a3c40c8`) sind gelöscht. Das Original ist die unveränderte `device.lua` aus KOReader v2026.07.2.
+  Ein Update oder eine Neuinstallation von KOReader stellt es wieder her.
