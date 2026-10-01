@@ -196,7 +196,8 @@ Sauberer wäre es, die neuen Funktionen in koreader-base (`ffi/inkview_h.lua`) z
 
 ## Offen
 
-- **Automatisches Ausschalten mit der finalen Fassung:** nicht getestet. Es liefert ebenfalls nur `EVT_BACKGROUND`, vermutlich mit demselben Ablauf.
+- **Automatisches Ausschalten mit der finalen Fassung:** nicht per Log ausgewertet. Im Alltag (01.10.) kam bei Pause, Ausschalten per Knopf
+  und automatischem Ausschalten laut Steffen zuverlässig ein neuer Stand bei Hardcover an.
 - **Wettlauf mit `monitor.app` beim Ausschalten:** Ist das WLAN ~3 s nach dem Ausschalt-Logo noch nicht verbunden, z. B. bei schwachem Signal,
   versucht `monitor.app` selbst zu verbinden. Dieser Versuch schaltet das WLAN wegen des Flags wieder ab. Das gilt nur, wenn die
   PocketBook-Cloud-Autosync an ist. Ohne Autosync entfällt der Versuch. pbcloudsync braucht die Autosync laut dessen Session nicht,
