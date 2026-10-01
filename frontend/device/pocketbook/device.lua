@@ -24,6 +24,9 @@ pcall(ffi.cdef, "int NetMgrStatus(void);")
 pcall(ffi.cdef, "int NetConnectSilent(const char *);")
 local has_net_connect_async = pcall(function() return inkview.NetConnectAsync, inkview.NetMgrStatus end)
 local has_net_connect_silent = pcall(function() return inkview.NetConnectSilent end)
+-- Exported by libinkview, but not part of the SDK: whether the system started powering off.
+pcall(ffi.cdef, "int hw_shutting_down(void);")
+local has_hw_shutting_down = pcall(function() return inkview.hw_shutting_down end)
 
 local function yes() return true end
 local function no() return false end
@@ -562,11 +565,15 @@ end
 
 -- Going to sleep (or being powered off) is the last chance for plugins to sync, e.g., the reading progress,
 -- so, like PocketBook's own cloud sync, make sure Wi-Fi is up before they get the Suspend event, if the user wants it to be.
--- NOTE: Unlike NetConnect & NetConnectAsync, NetConnectSilent isn't refused once the keylock is engaged (which it is by now),
---       and it never shows any dialog. It blocks for a second or two (keeping the system awake meanwhile),
---       but we're not visible anymore anyway.
+-- Either way, this blocks for a couple of seconds, but we're not visible anymore anyway.
+-- NOTE: When going to sleep, the keylock is engaged by now, so InkView refuses NetConnect & NetConnectAsync,
+--       but not NetConnectSilent, which never shows any dialog, either.
 --       The system tears Wi-Fi down again 5 to 10 seconds after we were sent to the background, regardless,
 --       so plugins have to be quick about it.
+--       When powering off, every connection attempt is refused, by InkView as well as by netagent's connect command,
+--       which even tears Wi-Fi down again. Just powering Wi-Fi up isn't, though: wpa_supplicant then associates with a
+--       known network on its own, and netagent's daemon runs DHCP. We get killed about 10 seconds after we were sent
+--       to the background.
 function PocketBook:_prepareNetworkForSuspend()
     if not has_net_connect_silent then
         return
@@ -578,9 +585,19 @@ function PocketBook:_prepareNetworkForSuspend()
     end
     local time = require("ui/time")
     local start = time.now()
-    local ret = inkview.NetConnectSilent(nil)
-    logger.dbg("PocketBook: NetConnectSilent before suspend:", ret, "connected:", NetworkMgr:isConnected(),
-               "after", time.to_ms(time.since(start)), "ms")
+    if has_hw_shutting_down and inkview.hw_shutting_down() ~= 0 then
+        inkview.WiFiPower(1)
+        local ffiutil = require("ffi/util")
+        while not NetworkMgr:isConnected() and time.since(start) < time.s(6) do
+            ffiutil.usleep(100 * 1000)
+        end
+        logger.dbg("PocketBook: Wi-Fi before power off: connected:", NetworkMgr:isConnected(),
+                   "after", time.to_ms(time.since(start)), "ms")
+    else
+        local ret = inkview.NetConnectSilent(nil)
+        logger.dbg("PocketBook: NetConnectSilent before suspend:", ret, "connected:", NetworkMgr:isConnected(),
+                   "after", time.to_ms(time.since(start)), "ms")
+    end
 end
 
 function PocketBook:setEventHandlers(uimgr)
